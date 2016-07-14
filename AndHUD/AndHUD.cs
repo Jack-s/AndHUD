@@ -5,6 +5,7 @@ using Android.Widget;
 using Android.Content;
 using System.Threading;
 using System.Threading.Tasks;
+using Android.OS;
 
 namespace AndroidHUD
 {
@@ -332,31 +333,48 @@ namespace AndroidHUD
 
 					Action actionDismiss = () =>
 					{
-						CurrentDialog.Hide ();
-						CurrentDialog.Dismiss ();
 
-						statusText = null;
-						statusObj = null;
-						imageView = null;
-						progressWheel = null;
-						CurrentDialog = null;
+						try {
+							//check if dialog is showing
+							if (CurrentDialog?.IsShowing ?? false) {
+								CurrentDialog?.Hide ();
+								CurrentDialog?.Dismiss ();
+							}
+							// A catch clause that catches System.Exception and has an empty body
+							#pragma warning disable RECS0022
+						} catch {
+							// A catch clause that catches System.Exception and has an empty body
+						#pragma warning restore RECS0022
+							//Exception is likely because device was rotaded and the activity destroyed
+						}
+						finally {
+							statusText = null;
+							statusObj = null;
+							imageView = null;
+							progressWheel = null;
+							CurrentDialog = null;
 
-						waitDismiss.Reset ();
+							waitDismiss.Reset ();
+						}
 					};
 						
 					//First try the SynchronizationContext
-					if (Application.SynchronizationContext != null)
+					if (Application.SynchronizationContext != null )
 					{
 						Application.SynchronizationContext.Send (state => actionDismiss (), null);
 						return;
 					}
+
+					//check if Activity.IsDestroyed is supported so we can try and check if the activity
+					//has been destroyed before dismissing
+					var IsDestroyedSupportted = (Build.VERSION.SdkInt >=  BuildVersionCodes.JellyBeanMr1); //API 17
 
 					//Next let's try and get the Activity from the CurrentDialog
 					if (CurrentDialog != null && CurrentDialog.Window != null && CurrentDialog.Window.Context != null)
 					{
 						var activity = CurrentDialog.Window.Context as Activity;
 
-						if (activity != null)
+						if (activity != null && (!IsDestroyedSupportted || !activity.IsDestroyed))
 						{
 							activity.RunOnUiThread (actionDismiss);
 							return;
@@ -369,7 +387,7 @@ namespace AndroidHUD
 					{
 						var activity = context as Activity;
 
-						if (activity != null)
+						if (activity != null )
 						{
 							activity.RunOnUiThread (actionDismiss);
 							return;
